@@ -1,3 +1,13 @@
+/*
+ * findBallse.c
+ * ------------
+ * Copyright : (c) 2008, Xavier Lagorce <lagorce@crans.org>
+ *             (c) 2011, Jeremie Dimino <jeremie@dimino.org>
+ * Licence   : BSD3
+ *
+ * This file is a part of [kro]bot.
+ */
+
 #include "cv.h"
 #include "highgui.h"
 #include <math.h>
@@ -5,7 +15,9 @@
 #include <ctype.h>
 #include <err.h>
 
-#define min(a,b) (((a) < (b)) ? (a) : (b))
+/* +-----------------------------------------------------------------+
+   | Parameters                                                      |
+   +-----------------------------------------------------------------+ */
 
 /* The parameters of the color to find in images. */
 struct color_params {
@@ -17,14 +29,15 @@ struct color_params {
 /* Global parameters. */
 struct color_params params;
 
-// Load the source image. HighGUI use.
+/* Load the source image. HighGUI use. */
 IplImage *image01 = 0, *image02 = 0, *image03 = 0, *imCont = 0, *imFill = 0, *imHSV = 0;
 
-int affichage = 0;
-int slider_pos;
+/* Whether to display the result on the screen or not using HighGUI. */
+int display = 0;
 
-void process_image();
-int in_radius(int val, int center, int radius, int max);
+/* +-----------------------------------------------------------------+
+   | Config file parsing                                             |
+   +-----------------------------------------------------------------+ */
 
 /* Parse the configuration file and store the result into params. */
 void parse_config(char *file_name)
@@ -78,82 +91,15 @@ void parse_config(char *file_name)
   fclose(fp);
 }
 
-int main( int argc, char** argv )
+/* +-----------------------------------------------------------------+
+   | Image processing                                                |
+   +-----------------------------------------------------------------+ */
+
+int in_radius(int val, int center, int radius, int max)
 {
-  int source, c, quit=0;
-  CvCapture *capture = NULL;
-  FILE *fichier;
-
-  // Traitement des paramètres de ligne de commande
-  if (argc < 2)
-  {
-    printf("argv[1] : chemin du fichier de paramètres\n");
-    printf("argv[2] : (optionnel) si différent de 0, affiche une fenêtre\n");
-    printf("argv[3] : (optionnel) numéro de la webcam à utiliser\n");
-    return 1;
-  }
-
-  /* Parse configuration. */
-  parse_config(argv[1]);
-
-  affichage = argc >= 3 ? atoi(argv[2]) : 0;
-  source = argc >= 4 ? atoi(argv[3]) : 0;
-
-  // Ouvre la webcam
-  capture = cvCaptureFromCAM(source);
-
-  // Create window
-  if (affichage != 0)
-    cvNamedWindow("Result", 1);
-
-  // Récupère une image de la webcam
-  image01 = cvQueryFrame(capture);
-
-  // Création de l'image en niveaux de gris à la taile de l'image prise par la webcam
-  image03 = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 1);
-
-  // Même chose avec l'image pour conversion
-  imHSV = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 3);
-
-  while (!quit)
-  {
-    // Récupère une image de la webcam
-    image01 = cvQueryFrame(capture);
-
-    process_image();
-
-    // Show the image
-    if (affichage != 0)
-      cvShowImage("Result", imCont);
-
-    // Wait for a key stroke; the same function arranges events processing
-    c = (char)cvWaitKey(10);
-
-    switch (c)
-    {
-      case 'q':
-	quit = 1;
-	break;
-    }
-
-    cvReleaseImage(&imCont);
-    cvReleaseImage(&imFill);
-  }
-
-
-  // On release la mémoire
-  cvReleaseCapture(&capture);
-
-  cvReleaseImage(&image02);
-  cvReleaseImage(&image03);
-  cvReleaseImage(&imHSV);
-  cvReleaseImage(&imFill);
-  cvReleaseImage(&imCont);
-
-  if (affichage != 0)
-    cvDestroyWindow("Result");
-
-  return 0;
+  int d;
+  d = abs(val - center);
+  return (d <= radius) || (max - d <= radius);
 }
 
 // This function the balls,
@@ -170,7 +116,7 @@ void process_image()
   cvCvtColor(image01, imHSV, CV_BGR2HSV);
 
   // Génération de l'image avec les résultats
-  if (affichage != 0)
+  if (display != 0)
     {
       imCont = cvCloneImage(image01);
       cvZero(imCont);
@@ -213,19 +159,19 @@ void process_image()
   stor = cvCreateMemStorage(0);
   cont = cvCreateSeq(CV_SEQ_ELTYPE_POINT, sizeof(CvSeq), sizeof(CvPoint) , stor);
 
-  // Threshold the source image. This needful for cvFindContours().
-  cvThreshold( image03, image02, slider_pos, 255, CV_THRESH_BINARY );
+  if (cont) {
+    // Threshold the source image. This needful for cvFindContours().
+    cvThreshold( image03, image02, params.threshold, 255, CV_THRESH_BINARY );
 
-  // Find all contours.
-  cvFindContours( image02, stor, &cont, sizeof(CvContour),
-                  CV_RETR_LIST, CV_CHAIN_APPROX_NONE, cvPoint(0,0));
+    // Find all contours.
+    cvFindContours( image02, stor, &cont, sizeof(CvContour),
+                    CV_RETR_LIST, CV_CHAIN_APPROX_NONE, cvPoint(0,0));
 
-  // Clear image. IPL use.
-  cvZero(image02);
+    // Clear image. IPL use.
+    cvZero(image02);
 
-  // This cycle draw all contours and approximate it by ellipses.
-  for(;cont;cont = cont->h_next)
-    {
+    // This cycle draw all contours and approximate it by ellipses.
+    for(;cont;cont = cont->h_next) {
       int i; // Indicator of cycle.
       int count = cont->total; // This is number point in contour
       CvPoint center;
@@ -246,11 +192,10 @@ void process_image()
       cvCvtSeqToArray(cont, PointArray, CV_WHOLE_SEQ);
 
       // Convert CvPoint set to CvBox2D32f set.
-      for(i=0; i<count; i++)
-        {
-          PointArray2D32f[i].x = (float)PointArray[i].x;
-          PointArray2D32f[i].y = (float)PointArray[i].y;
-        }
+      for(i=0; i<count; i++) {
+        PointArray2D32f[i].x = (float)PointArray[i].x;
+        PointArray2D32f[i].y = (float)PointArray[i].y;
+      }
 
       // Fits ellipse to current contour.
       cvFitEllipse(PointArray2D32f, count, box);
@@ -265,8 +210,11 @@ void process_image()
       // On ne dessine le contour et l'ellipse que si son rayon est dans les bornes
       meanRad = (size.width + size.height) / 2;
 
-      if (meanRad >= params.minCont && meanRad <= params.maxCont)
-        {
+      if (meanRad >= params.minCont && meanRad <= params.maxCont) {
+        /* Print ellipsis parameters on stdout. */
+        printf("%d %d %d %d %f\n", center.x, center.y, size.width, size.height, box->angle);
+
+        if (display) {
           // Draw current contour.
           cvDrawContours(imCont,cont,CV_RGB(255,255,255),CV_RGB(255,255,255),0,1,8,cvPoint(0,0));
 
@@ -275,24 +223,103 @@ void process_image()
                     box->angle, 0, 360,
                     CV_RGB(255,0,0), 1, CV_AA, 0);
         }
+      }
 
       // Free memory.
-      free(imCont->roi); imCont->roi = NULL;
       free(PointArray);
       free(PointArray2D32f);
       free(box);
-
     }
+  }
 
   // On libère la mémoire
+  if (display) {
+    free(imCont->roi);
+    imCont->roi = NULL;
+  }
   cvReleaseMemStorage(&stor);
   cvReleaseImage(&image02);
   cvReleaseImage(&imFill);
 }
 
-int in_radius(int val, int center, int radius, int max)
+/* +-----------------------------------------------------------------+
+   | Entry point                                                     |
+   +-----------------------------------------------------------------+ */
+
+int main( int argc, char** argv )
 {
-  int d;
-  d = abs(val - center);
-  return min(d,max - d) <= radius;
+  int source, c, quit=0;
+  CvCapture *capture = NULL;
+  FILE *fichier;
+
+  // Traitement des paramètres de ligne de commande
+  if (argc < 2)
+  {
+    printf("argv[1] : chemin du fichier de paramètres\n");
+    printf("argv[2] : (optionnel) si différent de 0, affiche une fenêtre\n");
+    printf("argv[3] : (optionnel) numéro de la webcam à utiliser\n");
+    return 1;
+  }
+
+  /* Parse configuration. */
+  parse_config(argv[1]);
+
+  display = argc >= 3 ? atoi(argv[2]) : 0;
+  source = argc >= 4 ? atoi(argv[3]) : 0;
+
+  // Ouvre la webcam
+  capture = cvCaptureFromCAM(source);
+
+  // Create window
+  if (display != 0)
+    cvNamedWindow("Result", 1);
+
+  // Récupère une image de la webcam
+  image01 = cvQueryFrame(capture);
+
+  // Création de l'image en niveaux de gris à la taile de l'image prise par la webcam
+  image03 = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 1);
+
+  // Même chose avec l'image pour conversion
+  imHSV = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 3);
+
+  while (!quit)
+  {
+    // Récupère une image de la webcam
+    image01 = cvQueryFrame(capture);
+
+    process_image();
+
+    // Show the image
+    if (display != 0) {
+      cvShowImage("Source", image01);
+      cvShowImage("Result", imCont);
+    }
+
+    // Wait for a key stroke; the same function arranges events processing
+    c = (char)cvWaitKey(10);
+
+    switch (c)
+    {
+      case 'q':
+	quit = 1;
+	break;
+    }
+
+    cvReleaseImage(&imCont);
+  }
+
+  // On release la mémoire
+  cvReleaseCapture(&capture);
+
+  cvReleaseImage(&image02);
+  cvReleaseImage(&image03);
+  cvReleaseImage(&imHSV);
+  cvReleaseImage(&imFill);
+  cvReleaseImage(&imCont);
+
+  if (display != 0)
+    cvDestroyWindow("Result");
+
+  return 0;
 }
