@@ -261,7 +261,6 @@ void process_image(int h)
 	}
         
         // Free memory.
-	free(imCont->roi); imCont->roi = NULL;
         free(PointArray);
         free(PointArray2D32f);
         free(box);
@@ -269,6 +268,7 @@ void process_image(int h)
     }
    
     // On libère la mémoire
+    free(imCont->roi); imCont->roi = NULL;
     cvReleaseMemStorage(&stor);
     cvReleaseImage(&image02);
 }
