@@ -159,6 +159,9 @@ void process_image()
   stor = cvCreateMemStorage(0);
   cont = cvCreateSeq(CV_SEQ_ELTYPE_POINT, sizeof(CvSeq), sizeof(CvPoint) , stor);
 
+  /* Print a separator. */
+  printf("=====");
+
   if (cont) {
     // Threshold the source image. This needful for cvFindContours().
     cvThreshold( image03, image02, params.threshold, 255, CV_THRESH_BINARY );
