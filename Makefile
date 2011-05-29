@@ -1,4 +1,4 @@
-OBJECTS = camfilter capture capturevideo findBallse fiteellipse_cam fiteellipse_camfilter
+OBJECTS = camfilter capture capturevideo findBallse fiteellipse_cam fiteellipse_camfilter calibration
 CC = g++
 CFLAGS = -ggdb `pkg-config --cflags opencv`
 LDFLAGS = `pkg-config --libs opencv`
