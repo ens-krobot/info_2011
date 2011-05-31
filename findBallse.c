@@ -35,6 +35,8 @@ IplImage *image01 = 0, *image02 = 0, *image03 = 0, *imCont = 0, *imFill = 0, *im
 /* Whether to display the result on the screen or not using HighGUI. */
 int display = 0;
 
+CvMat* homography;
+
 /* +-----------------------------------------------------------------+
    | Config file parsing                                             |
    +-----------------------------------------------------------------+ */
@@ -112,6 +114,9 @@ void process_image()
   CvPoint2D32f* PointArray2D32f;
   int i, j, meanRad;
 
+  CvMat* src;
+  CvMat* dst;
+
   // Changement d'espace de couleur
   cvCvtColor(image01, imHSV, CV_BGR2HSV);
 
@@ -160,7 +165,7 @@ void process_image()
   cont = cvCreateSeq(CV_SEQ_ELTYPE_POINT, sizeof(CvSeq), sizeof(CvPoint) , stor);
 
   /* Print a separator. */
-  printf("=====");
+  printf("=====\n");
 
   if (cont) {
     // Threshold the source image. This needful for cvFindContours().
@@ -214,8 +219,16 @@ void process_image()
       meanRad = (size.width + size.height) / 2;
 
       if (meanRad >= params.minCont && meanRad <= params.maxCont) {
+
+	// tansform matched elipsis to table coordinates
+	src = cvCreateMat(1, 1, CV_32FC2);
+	dst = cvCreateMat(1, 1, CV_32FC2);
+	src->data.fl[0] = (float) center.x;
+	dst->data.fl[1] = (float) center.y;
+	cvPerspectiveTransform(point1, point2, homography);
+
         /* Print ellipsis parameters on stdout. */
-        printf("%d %d %d %d %f\n", center.x, center.y, size.width, size.height, box->angle);
+	printf("%f %f\n", dst->data.fl[0], dst->data.fl[1]);
 
         if (display) {
           // Draw current contour.
@@ -234,6 +247,8 @@ void process_image()
       free(box);
     }
   }
+
+  fflush(stdout);
 
   // On libère la mémoire
   if (display) {
@@ -285,6 +300,18 @@ int main( int argc, char** argv )
 
   // Même chose avec l'image pour conversion
   imHSV = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 3);
+
+  // create and initialise homograpy matrix
+  homography = cvCreateMat(3, 3, CV_32F);
+  homography->data.fl[0] = -0.00109182286542;
+  homography->data.fl[1] = -0.0570392236114;
+  homography->data.fl[2] = 7.99883031845;
+  homography->data.fl[3] = -0.00867976341397;
+  homography->data.fl[4] = -0.0176480710506;
+  homography->data.fl[5] = 3.60714673996;
+  homography->data.fl[6] = -0.000370743422536;
+  homography->data.fl[7] = -0.0184959284961;
+  homography->data.fl[8] = 1.0;
 
   while (!quit)
   {
