@@ -93,6 +93,22 @@ void parse_config(char *file_name)
   fclose(fp);
 }
 
+/* Parse the homography configuration file and store the result into
+   homography. */
+void parse_homography(char *file_name)
+{
+  FILE *fp = fopen(file_name, "r");
+
+  int i;
+  for (i = 0; i < 8; i++) {
+    float x;
+    fscanf(fp, "%f\n", &x);
+    homography->data.fl[i] = x;
+  }
+
+  fclose(fp);
+}
+
 /* +-----------------------------------------------------------------+
    | Image processing                                                |
    +-----------------------------------------------------------------+ */
@@ -225,7 +241,7 @@ void process_image()
 	dst = cvCreateMat(1, 1, CV_32FC2);
 	src->data.fl[0] = (float) center.x;
 	dst->data.fl[1] = (float) center.y;
-	cvPerspectiveTransform(point1, point2, homography);
+	cvPerspectiveTransform(src, dst, homography);
 
         /* Print ellipsis parameters on stdout. */
 	printf("%f %f\n", dst->data.fl[0], dst->data.fl[1]);
@@ -271,19 +287,26 @@ int main( int argc, char** argv )
   FILE *fichier;
 
   // Traitement des paramètres de ligne de commande
-  if (argc < 2)
+  if (argc < 3)
   {
     printf("argv[1] : chemin du fichier de paramètres\n");
-    printf("argv[2] : (optionnel) si différent de 0, affiche une fenêtre\n");
-    printf("argv[3] : (optionnel) numéro de la webcam à utiliser\n");
+    printf("argv[2] : chemin du fichier de paramètres pour l'homography\n");
+    printf("argv[3] : (optionnel) si différent de 0, affiche une fenêtre\n");
+    printf("argv[4] : (optionnel) numéro de la webcam à utiliser\n");
     return 1;
   }
+
+  /* Create and initialise homograpy matrix. */
+  homography = cvCreateMat(3, 3, CV_32F);
 
   /* Parse configuration. */
   parse_config(argv[1]);
 
-  display = argc >= 3 ? atoi(argv[2]) : 0;
-  source = argc >= 4 ? atoi(argv[3]) : 0;
+  /* Parse the homography matrix. */
+  parse_homography(argv[2]);
+
+  display = argc >= 4 ? atoi(argv[3]) : 0;
+  source = argc >= 5 ? atoi(argv[4]) : 0;
 
   // Ouvre la webcam
   capture = cvCaptureFromCAM(source);
@@ -300,18 +323,6 @@ int main( int argc, char** argv )
 
   // Même chose avec l'image pour conversion
   imHSV = cvCreateImage(cvSize(image01->width,image01->height), IPL_DEPTH_8U, 3);
-
-  // create and initialise homograpy matrix
-  homography = cvCreateMat(3, 3, CV_32F);
-  homography->data.fl[0] = -0.00109182286542;
-  homography->data.fl[1] = -0.0570392236114;
-  homography->data.fl[2] = 7.99883031845;
-  homography->data.fl[3] = -0.00867976341397;
-  homography->data.fl[4] = -0.0176480710506;
-  homography->data.fl[5] = 3.60714673996;
-  homography->data.fl[6] = -0.000370743422536;
-  homography->data.fl[7] = -0.0184959284961;
-  homography->data.fl[8] = 1.0;
 
   while (!quit)
   {
