@@ -244,7 +244,7 @@ void process_image(int h)
         center.y = cvRound(box->center.y);
         size.width = cvRound(box->size.width*0.5);
         size.height = cvRound(box->size.height*0.5);
-        box->angle = -box->angle;
+        //        box->angle = -box->angle;
         
 	// On ne dessine le contour et l'ellipse que si son rayon est dans les bornes
 	meanRad = (size.width + size.height) / 2;
